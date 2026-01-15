@@ -61,6 +61,7 @@ class SecurityValidator:
         ".kt",
         ".md",
         ".txt",
+        ".docx",
         ".json",
         ".yml",
         ".yaml",

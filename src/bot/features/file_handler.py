@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
+import mammoth
 from telegram import Document
 
 from src.config import Settings
@@ -145,6 +146,8 @@ class FileHandler:
             # Process based on type
             if file_type == "archive":
                 return await self._process_archive(file_path, context)
+            elif file_type == "docx":
+                return await self._process_docx_file(file_path, context)
             elif file_type == "code":
                 return await self._process_code_file(file_path, context)
             elif file_type == "text":
@@ -177,6 +180,10 @@ class FileHandler:
         # Check if archive
         if ext in {".zip", ".tar", ".gz", ".bz2", ".xz", ".7z"}:
             return "archive"
+
+        # Check if docx
+        if ext == ".docx":
+            return "docx"
 
         # Check if code
         if ext in self.code_extensions:
@@ -295,6 +302,24 @@ class FileHandler:
             prompt=prompt,
             metadata={
                 "lines": len(content.splitlines()),
+                "size": file_path.stat().st_size,
+            },
+        )
+
+    async def _process_docx_file(self, file_path: Path, context: str) -> ProcessedFile:
+        """Process docx file and convert to markdown"""
+        with open(file_path, "rb") as docx_file:
+            result = mammoth.convert_to_markdown(docx_file)
+            markdown_content = result.value
+
+        # Create prompt requesting summary only
+        prompt = f"{context}\n\nPlease summarize the following document. Do not use any tools or agents, just provide a summary.\n\nFile: {file_path.name}\n\n{markdown_content}"
+
+        return ProcessedFile(
+            type="docx",
+            prompt=prompt,
+            metadata={
+                "lines": len(markdown_content.splitlines()),
                 "size": file_path.stat().st_size,
             },
         )
