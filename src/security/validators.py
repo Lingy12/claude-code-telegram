@@ -24,19 +24,13 @@ class SecurityValidator:
     # Dangerous patterns for path traversal and injection
     DANGEROUS_PATTERNS = [
         r"\.\.",  # Parent directory
+        r"\x00",  # Null byte
+    ]
+
+    # Patterns specifically for path validation (not command validation)
+    PATH_DANGEROUS_PATTERNS = [
+        r"\.\.",  # Parent directory
         r"~",  # Home directory expansion
-        r"\$\{",  # Variable expansion ${...}
-        r"\$\(",  # Command substitution $(...)
-        r"\$[A-Za-z_]",  # Environment variable expansion $VAR
-        r"`",  # Command substitution with backticks
-        r";",  # Command chaining
-        r"&&",  # Command chaining (AND)
-        r"\|\|",  # Command chaining (OR)
-        r">",  # Output redirection
-        r"<",  # Input redirection
-        r"\|(?!\|)",  # Piping (but not ||)
-        r"&(?!&)",  # Background execution (but not &&)
-        r"#.*",  # Comments (potential for injection)
         r"\x00",  # Null byte
     ]
 
@@ -156,7 +150,7 @@ class SecurityValidator:
             user_path = user_path.strip()
 
             # Check for dangerous patterns
-            for pattern in self.DANGEROUS_PATTERNS:
+            for pattern in self.PATH_DANGEROUS_PATTERNS:
                 if re.search(pattern, user_path, re.IGNORECASE):
                     logger.warning(
                         "Dangerous pattern detected in path",
@@ -229,7 +223,7 @@ class SecurityValidator:
             return False, "Invalid filename: contains path separators"
 
         # Check for forbidden patterns
-        for pattern in self.DANGEROUS_PATTERNS:
+        for pattern in self.PATH_DANGEROUS_PATTERNS:
             if re.search(pattern, filename, re.IGNORECASE):
                 logger.warning(
                     "Dangerous pattern in filename", filename=filename, pattern=pattern
@@ -320,25 +314,13 @@ class SecurityValidator:
         sanitized_args = []
 
         for arg in args:
-            # Check for dangerous patterns
-            for pattern in self.DANGEROUS_PATTERNS:
-                if re.search(pattern, arg, re.IGNORECASE):
-                    logger.warning(
-                        "Dangerous pattern in command arg", arg=arg, pattern=pattern
-                    )
-                    return False, [], "Invalid argument: contains forbidden pattern"
+            # Note: We don't validate for shell operators here since legitimate
+            # commands use pipes, redirects, etc. Only check for null bytes.
+            if '\x00' in arg:
+                logger.warning("Null byte in command arg", arg=arg)
+                return False, [], "Invalid argument: contains null byte"
 
-            # Sanitize argument
-            sanitized = self.sanitize_command_input(arg)
-            if not sanitized and arg:  # If original had content but sanitized is empty
-                logger.warning("Command argument completely sanitized", original=arg)
-                return (
-                    False,
-                    [],
-                    f"Invalid argument: '{arg}' contains only forbidden characters",
-                )
-
-            sanitized_args.append(sanitized)
+            sanitized_args.append(arg)
 
         return True, sanitized_args, None
 
@@ -349,8 +331,8 @@ class SecurityValidator:
 
         dirname = dirname.strip()
 
-        # Check for dangerous patterns
-        for pattern in self.DANGEROUS_PATTERNS:
+        # Check for dangerous patterns (only path traversal, not shell operators)
+        for pattern in self.PATH_DANGEROUS_PATTERNS:
             if re.search(pattern, dirname, re.IGNORECASE):
                 return False
 

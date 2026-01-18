@@ -113,22 +113,12 @@ class ToolMonitor:
         if tool_name in ["bash", "shell", "Bash"]:
             command = tool_input.get("command", "")
 
-            # Check for dangerous commands
+            # Check for truly dangerous commands only (allow pipes, redirects, etc.)
             dangerous_patterns = [
-                "rm -rf",
-                "sudo",
-                "chmod 777",
-                "curl",
-                "wget",
-                "nc ",
-                "netcat",
-                ">",
-                ">>",
-                "|",
-                "&",
-                ";",
-                "$(",
-                "`",
+                "rm -rf /",  # Only block recursive delete of root
+                "mkfs",  # Format filesystem
+                "dd if=/dev/zero",  # Disk wipe
+                ":(){ :|:& };:",  # Fork bomb
             ]
 
             for pattern in dangerous_patterns:

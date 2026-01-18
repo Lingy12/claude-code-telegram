@@ -186,13 +186,20 @@ async def handle_text_message(
         session_id = context.user_data.get("claude_session_id")
 
         # Enhanced stream updates handler with progress tracking
+        last_progress_text = None  # Track last message to avoid duplicate updates
+
         async def stream_handler(update_obj):
+            nonlocal last_progress_text
             try:
                 progress_text = await _format_progress_update(update_obj)
-                if progress_text:
+                if progress_text and progress_text != last_progress_text:
                     await progress_msg.edit_text(progress_text, parse_mode="Markdown")
+                    last_progress_text = progress_text
             except Exception as e:
-                logger.warning("Failed to update progress message", error=str(e))
+                # Ignore "message not modified" errors as they're harmless
+                error_str = str(e).lower()
+                if "message is not modified" not in error_str:
+                    logger.warning("Failed to update progress message", error=str(e))
 
         # Run Claude command
         try:
